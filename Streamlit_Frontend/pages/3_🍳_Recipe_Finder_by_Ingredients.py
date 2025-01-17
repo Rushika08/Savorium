@@ -134,33 +134,6 @@ def predict_ingredient(image):
     confidence_score = prediction[0][index]
     return class_name, confidence_score
 
-# # Initialize session state for ingredients
-# if "ingredients" not in st.session_state:
-#     st.session_state.ingredients = []
-
-# # Streamlit app
-# st.title("Ingredient Recognition and Recipe Finder")
-
-# # Tab 1: Image Recognition
-# st.subheader("Image Recognition")
-# uploaded_file = st.file_uploader("Upload an image of the ingredient", type=["jpg", "png", "jpeg"])
-
-# if uploaded_file:
-#     image = Image.open(uploaded_file)
-#     st.image(image, caption="Uploaded Image", use_column_width=True)
-#     if st.button("Predict Ingredient"):
-#         class_name, confidence = predict_ingredient(image)
-#         st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
-        
-#         if st.button("Confirm", key="confirm_model"):
-#             st.session_state.ingredients.append(class_name)
-#             st.success(f"Added '{class_name}' to the ingredient list.")
-#         elif st.button("Discard", key="discard_model"):
-#             st.warning("Suggestion discarded.")
-
-
-
-
 # Session state to store ingredients
 if "ingredients" not in st.session_state:
     st.session_state.ingredients = []
@@ -208,11 +181,6 @@ if st.session_state.ingredients:
     st.write(st.session_state.ingredients)
 
 
-
-
-
-
-
 # Tab 2: Manual Entry
 st.subheader("Manual Entry")
 manual_input = st.text_input("Enter ingredient name manually:")
@@ -232,3 +200,26 @@ if st.session_state.ingredients:
 else:
     st.write("No ingredients added yet.")
 
+# # Initialize session state for ingredients
+# if "ingredients" not in st.session_state:
+#     st.session_state.ingredients = []
+
+# # Streamlit app
+# st.title("Ingredient Recognition and Recipe Finder")
+
+# # Tab 1: Image Recognition
+# st.subheader("Image Recognition")
+# uploaded_file = st.file_uploader("Upload an image of the ingredient", type=["jpg", "png", "jpeg"])
+
+# if uploaded_file:
+#     image = Image.open(uploaded_file)
+#     st.image(image, caption="Uploaded Image", use_column_width=True)
+#     if st.button("Predict Ingredient"):
+#         class_name, confidence = predict_ingredient(image)
+#         st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
+        
+#         if st.button("Confirm", key="confirm_model"):
+#             st.session_state.ingredients.append(class_name)
+#             st.success(f"Added '{class_name}' to the ingredient list.")
+#         elif st.button("Discard", key="discard_model"):
+#             st.warning("Suggestion discarded.")
