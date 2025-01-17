@@ -80,11 +80,11 @@
 
 
 import streamlit as st
-from keras.models import load_model
 from PIL import Image, ImageOps
 import numpy as np
+from keras.models import load_model
 
-# Load the model and labels
+# Load model and class names
 model = load_model("/app/model/keras_model.h5", compile=False)
 class_names = open("/app/model/labels.txt", "r").readlines()
 
@@ -101,11 +101,12 @@ def predict_ingredient(image):
     confidence_score = prediction[0][index]
     return class_name, confidence_score
 
-# Streamlit app
-st.title("Ingredient Recognition and Input")
+# Initialize session state for ingredients
+if "ingredients" not in st.session_state:
+    st.session_state.ingredients = []
 
-# Shared list of ingredients
-ingredients = []
+# Streamlit app
+st.title("Ingredient Recognition and Recipe Finder")
 
 # Tab 1: Image Recognition
 st.subheader("Image Recognition")
@@ -119,7 +120,7 @@ if uploaded_file:
         st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
         
         if st.button("Confirm", key="confirm_model"):
-            ingredients.append(class_name)
+            st.session_state.ingredients.append(class_name)
             st.success(f"Added '{class_name}' to the ingredient list.")
         elif st.button("Discard", key="discard_model"):
             st.warning("Suggestion discarded.")
@@ -129,14 +130,17 @@ st.subheader("Manual Entry")
 manual_input = st.text_input("Enter ingredient name manually:")
 if st.button("Add Ingredient", key="add_manual"):
     if manual_input.strip():
-        ingredients.append(manual_input.strip())
+        st.session_state.ingredients.append(manual_input.strip())
         st.success(f"Added '{manual_input}' to the ingredient list.")
     else:
         st.error("Please enter a valid ingredient name.")
 
 # Display the ingredient list
 st.subheader("Ingredient List")
-if ingredients:
-    st.write(ingredients)
+if st.session_state.ingredients:
+    st.markdown("### Ingredients Added:")
+    for i, ingredient in enumerate(st.session_state.ingredients, start=1):
+        st.write(f"{i}. {ingredient}")
 else:
     st.write("No ingredients added yet.")
+
