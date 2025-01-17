@@ -1,14 +1,48 @@
-# import requests
-# import streamlit as st
-# import pandas as pd
+import requests
+import streamlit as st
+import pandas as pd
+from PIL import Image, ImageOps
+import numpy as np
+from keras.models import load_model
+
+# # Load model and class names
+# model = load_model("/app/model/keras_model.h5", compile=False)
+# class_names = open("/app/model/labels.txt", "r").readlines()
+
+# # Function to predict ingredient from an image
+# def predict_ingredient(image):
+#     size = (224, 224)
+#     image = ImageOps.fit(image, size, Image.Resampling.LANCZOS).convert("RGB")
+#     data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+#     normalized_image_array = (np.asarray(image).astype(np.float32) / 127.5) - 1
+#     data[0] = normalized_image_array
+#     prediction = model.predict(data)
+#     index = np.argmax(prediction)
+#     class_name = class_names[index].strip()
+#     confidence_score = prediction[0][index]
+#     return class_name, confidence_score
+
+# # Tab 1: Image Recognition
+# st.subheader("Image Recognition")
+# uploaded_file = st.file_uploader("Upload an image of the ingredient", type=["jpg", "png", "jpeg"])
+
+# if uploaded_file:
+#     image = Image.open(uploaded_file)
+#     st.image(image, caption="Uploaded Image", use_column_width=True)
+#     if st.button("Predict Ingredient"):
+#         class_name, confidence = predict_ingredient(image)
+#         st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
+        
+#         if st.button("Confirm", key="confirm_model"):
+#             st.session_state.ingredients.append(class_name)
+#             st.success(f"Added '{class_name}' to the ingredient list.")
+#         elif st.button("Discard", key="discard_model"):
+#             st.warning("Suggestion discarded.")
 
 # # Page Configuration
 # st.set_page_config(page_title="Recipe Finder by Ingredients", page_icon="🍳", layout="wide")
 
 # def find_recipes(ingredients, number, ranking, ignore_pantry, api_key):
-#     """
-#     Call the Spoonacular API to find recipes based on ingredients.
-#     """
 #     url = "https://api.spoonacular.com/recipes/findByIngredients"
 #     params = {
 #         "ingredients": ingredients,
@@ -79,10 +113,9 @@
 #                 st.markdown(f"[View Recipe Details](https://spoonacular.com/recipes/{recipe['title'].replace(' ', '-')}-{recipe['id']})")
 
 
-import streamlit as st
-from PIL import Image, ImageOps
-import numpy as np
-from keras.models import load_model
+
+
+
 
 # Load model and class names
 model = load_model("/app/model/keras_model.h5", compile=False)
@@ -101,29 +134,84 @@ def predict_ingredient(image):
     confidence_score = prediction[0][index]
     return class_name, confidence_score
 
-# Initialize session state for ingredients
+# # Initialize session state for ingredients
+# if "ingredients" not in st.session_state:
+#     st.session_state.ingredients = []
+
+# # Streamlit app
+# st.title("Ingredient Recognition and Recipe Finder")
+
+# # Tab 1: Image Recognition
+# st.subheader("Image Recognition")
+# uploaded_file = st.file_uploader("Upload an image of the ingredient", type=["jpg", "png", "jpeg"])
+
+# if uploaded_file:
+#     image = Image.open(uploaded_file)
+#     st.image(image, caption="Uploaded Image", use_column_width=True)
+#     if st.button("Predict Ingredient"):
+#         class_name, confidence = predict_ingredient(image)
+#         st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
+        
+#         if st.button("Confirm", key="confirm_model"):
+#             st.session_state.ingredients.append(class_name)
+#             st.success(f"Added '{class_name}' to the ingredient list.")
+#         elif st.button("Discard", key="discard_model"):
+#             st.warning("Suggestion discarded.")
+
+
+
+
+# Session state to store ingredients
 if "ingredients" not in st.session_state:
     st.session_state.ingredients = []
 
-# Streamlit app
-st.title("Ingredient Recognition and Recipe Finder")
+# Function to crop and resize an image to a square
+def crop_to_square(image, size=150):
+    """Crop the image to a square and resize to the specified size."""
+    return ImageOps.fit(image, (size, size), method=Image.Resampling.LANCZOS)
 
 # Tab 1: Image Recognition
 st.subheader("Image Recognition")
-uploaded_file = st.file_uploader("Upload an image of the ingredient", type=["jpg", "png", "jpeg"])
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Image", use_column_width=True)
-    if st.button("Predict Ingredient"):
-        class_name, confidence = predict_ingredient(image)
-        st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
-        
-        if st.button("Confirm", key="confirm_model"):
-            st.session_state.ingredients.append(class_name)
-            st.success(f"Added '{class_name}' to the ingredient list.")
-        elif st.button("Discard", key="discard_model"):
-            st.warning("Suggestion discarded.")
+uploaded_files = st.file_uploader(
+    "Upload images of ingredients", 
+    type=["jpg", "png", "jpeg"], 
+    accept_multiple_files=True
+)
+
+if uploaded_files:
+    # Group the uploaded files into chunks of 4
+    for i in range(0, len(uploaded_files), 4):
+        cols = st.columns(4)  # Create 4 columns for each row
+        for j, uploaded_file in enumerate(uploaded_files[i:i+4]):
+            with cols[j]:  # Display each image in a column
+                image = Image.open(uploaded_file)
+                # Crop and resize the image to a square
+                cropped_image = crop_to_square(image)
+                st.image(cropped_image, caption=f"{uploaded_file.name}", width=150)  # Display cropped image
+                
+                # Predict button
+                if st.button(f"Predict {uploaded_file.name}", key=f"predict_{uploaded_file.name}"):
+                    class_name, confidence = predict_ingredient(cropped_image)
+                    st.write(f"Model Suggestion: {class_name} (Confidence: {confidence:.2f})")
+
+                    # Confirm and Discard Buttons (not nested in columns)
+                    if st.button(f"Confirm {uploaded_file.name}", key=f"confirm_{uploaded_file.name}"):
+                        st.session_state.ingredients.append(class_name)
+                        st.success(f"Added '{class_name}' to the ingredient list.")
+                    if st.button(f"Discard {uploaded_file.name}", key=f"discard_{uploaded_file.name}"):
+                        st.warning("Suggestion discarded.")
+
+# Display the final list of ingredients
+if st.session_state.ingredients:
+    st.subheader("Confirmed Ingredients")
+    st.write(st.session_state.ingredients)
+
+
+
+
+
+
 
 # Tab 2: Manual Entry
 st.subheader("Manual Entry")
