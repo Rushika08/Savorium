@@ -244,10 +244,12 @@ st.write("Find recipes based on the ingredients you have!")
 # Input section
 with st.form("ingredient_form"):
     # st.write("Enter the ingredients you have:")
-    ingredients_input = st.text_area(
-        "Ingredients (comma-separated)",
-        placeholder="e.g., apples, flour, sugar"
-    )
+    # ingredients_input = st.text_area(
+    #     "Ingredients (comma-separated)",
+    #     placeholder="e.g., apples, flour, sugar"
+    # )
+
+    ingredients_input = ", ".join(st.session_state.ingredients)
     number_of_recipes = st.slider("Number of Recipes to Fetch", 1, 100, 10)
     ranking_option = st.selectbox(
         "Recipe Ranking",
@@ -257,36 +259,36 @@ with st.form("ingredient_form"):
     ignore_pantry_items = st.checkbox("Ignore pantry items (e.g., water, salt, flour)", value=True)
     submitted = st.form_submit_button("Find Recipes")
 
-# if submitted and ingredients_input:
-#     # Call the API
-#     api_key = "92d69d50485a4c429fdefc0cb5e2dbee"  # Replace with your API key
-#     recipes = find_recipes(
-#         ingredients=ingredients_input,
-#         number=number_of_recipes,
-#         ranking=ranking_option,
-#         ignore_pantry=ignore_pantry_items,
-#         api_key=api_key
-#     )
+if submitted and ingredients_input:
+    # Call the API
+    api_key = "92d69d50485a4c429fdefc0cb5e2dbee"  # Replace with your API key
+    recipes = find_recipes(
+        ingredients=ingredients_input,
+        number=number_of_recipes,
+        ranking=ranking_option,
+        ignore_pantry=ignore_pantry_items,
+        api_key=api_key
+    )
 
-#     if recipes:
-#         st.success(f"Found {len(recipes)} recipe(s)!")
-#         # Display the recipes
-#         for recipe in recipes:
-#             with st.expander(recipe['title']):
-#                 # Display image if available
-#                 if recipe.get('image'):
-#                     st.image(recipe['image'], use_column_width=True)
+    if recipes:
+        st.success(f"Found {len(recipes)} recipe(s)!")
+        # Display the recipes
+        for recipe in recipes:
+            with st.expander(recipe['title']):
+                # Display image if available
+                if recipe.get('image'):
+                    st.image(recipe['image'], use_column_width=True)
                 
-#                 # Ingredients used and missed
-#                 used_ingredients = [ing['original'] for ing in recipe['usedIngredients']]
-#                 missed_ingredients = [ing['original'] for ing in recipe['missedIngredients']]
+                # Ingredients used and missed
+                used_ingredients = [ing['original'] for ing in recipe['usedIngredients']]
+                missed_ingredients = [ing['original'] for ing in recipe['missedIngredients']]
 
-#                 st.write(f"**Used Ingredients ({len(used_ingredients)}):**")
-#                 st.markdown("\n".join([f"- {ingredient}" for ingredient in used_ingredients]))
+                st.write(f"**Used Ingredients ({len(used_ingredients)}):**")
+                st.markdown("\n".join([f"- {ingredient}" for ingredient in used_ingredients]))
 
-#                 st.write(f"**Missed Ingredients ({len(missed_ingredients)}):**")
-#                 st.markdown("\n".join([f"- {ingredient}" for ingredient in missed_ingredients]))
+                st.write(f"**Missed Ingredients ({len(missed_ingredients)}):**")
+                st.markdown("\n".join([f"- {ingredient}" for ingredient in missed_ingredients]))
 
-#                 # Link to recipe
-#                 st.markdown(f"[View Recipe Details](https://spoonacular.com/recipes/{recipe['title'].replace(' ', '-')}-{recipe['id']})")
+                # Link to recipe
+                st.markdown(f"[View Recipe Details](https://spoonacular.com/recipes/{recipe['title'].replace(' ', '-')}-{recipe['id']})")
 
