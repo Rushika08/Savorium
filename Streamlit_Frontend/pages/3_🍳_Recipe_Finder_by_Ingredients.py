@@ -277,7 +277,7 @@ if submitted and ingredients_input:
             with st.expander(recipe['title']):
                 # Display image if available
                 if recipe.get('image'):
-                    st.image(recipe['image'], use_column_width=True)
+                    st.image(recipe['image'], width=200)
                 
                 # Ingredients used and missed
                 used_ingredients = [ing['original'] for ing in recipe['usedIngredients']]
