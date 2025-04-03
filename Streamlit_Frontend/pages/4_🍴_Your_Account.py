@@ -1,431 +1,686 @@
-# import streamlit as st
-# import sqlite3
-# import streamlit_authenticator as stauth
-# # from streamlit_authenticator.utilities.hasher import Hasher
-# import bcrypt
-
-# # Database setup
-# DATABASE = "recipes.db"
-
-# # Initialize database
-# def init_db():
-#     conn = sqlite3.connect(DATABASE)
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         CREATE TABLE IF NOT EXISTS users (
-#             username TEXT PRIMARY KEY,
-#             name TEXT,
-#             hashed_password TEXT
-#         )
-#     """)
-#     cursor.execute("""
-#         CREATE TABLE IF NOT EXISTS recipes (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             username TEXT,
-#             name TEXT,
-#             ingredients TEXT,
-#             instructions TEXT,
-#             nutrition_values TEXT,
-#             FOREIGN KEY (username) REFERENCES users(username)
-#         )
-#     """)
-#     conn.commit()
-#     conn.close()
-
-# # Insert user into database
-# def add_user(username, name, hashed_password):
-#     conn = sqlite3.connect(DATABASE)
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         INSERT INTO users (username, name, hashed_password) VALUES (?, ?, ?)
-#     """, (username, name, hashed_password))
-#     conn.commit()
-#     conn.close()
-
-# # Fetch recipes for a user
-# def get_recipes(username):
-#     conn = sqlite3.connect(DATABASE)
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         SELECT name, ingredients, instructions, nutrition_values FROM recipes WHERE username=?
-#     """, (username,))
-#     recipes = cursor.fetchall()
-#     conn.close()
-#     return recipes
-
-# # Add a recipe to the database
-# def add_recipe(username, name, ingredients, instructions, nutrition_values):
-#     conn = sqlite3.connect(DATABASE)
-#     cursor = conn.cursor()
-#     cursor.execute("""
-#         INSERT INTO recipes (username, name, ingredients, instructions, nutrition_values)
-#         VALUES (?, ?, ?, ?, ?)
-#     """, (username, name, ingredients, instructions, nutrition_values))
-#     conn.commit()
-#     conn.close()
-
-# # Initialize the database
-# init_db()
-
-# # Authentication setup
-# names = ["Admin"]
-# usernames = ["admin"]
-# passwords = ["password123"]
-
-# # Hash the passwords
-# # hashed_passwords = stauth.Hasher(passwords).generate()
-
-# # Create the authenticator object
-# # authenticator = stauth.Authenticate(names, usernames, passwords, "auth_cookie", "auth_key", cookie_expiry_days=1)
-
-# authenticator = stauth.Authenticate(
-#     names=names,
-#     usernames=usernames,
-#     passwords=passwords,
-#     cookie_name="auth_cookie",
-#     key="auth_key",
-#     cookie_expiry_days=1
-# )
-
-
-# # Streamlit page
-# st.set_page_config(page_title="Your Account", page_icon="🍴", layout="wide")
-
-# name, authentication_status, username = authenticator.login("Login", "main")
-
-# if authentication_status:
-#     st.sidebar.write(f"Welcome, {name}!")
-#     authenticator.logout("Logout", "sidebar")
-
-#     # Recipe submission form
-#     st.title("Submit Your Recipe")
-
-#     with st.form("recipe_form"):
-#         recipe_name = st.text_input("Recipe Name", max_chars=50)
-#         ingredients = st.text_area("Ingredients (comma-separated)", height=100)
-#         instructions = st.text_area("Instructions (step-by-step)", height=150)
-#         nutrition_values = st.text_area("Nutritional Values (JSON format)", height=100)
-#         submitted = st.form_submit_button("Submit")
-
-#     if submitted:
-#         if recipe_name and ingredients and instructions:
-#             add_recipe(username, recipe_name, ingredients, instructions, nutrition_values)
-#             st.success("Recipe submitted successfully!")
-#         else:
-#             st.error("All fields are required!")
-
-#     # View saved recipes
-#     st.title("Your Saved Recipes")
-#     recipes = get_recipes(username)
-#     if recipes:
-#         for recipe in recipes:
-#             with st.expander(recipe[0]):  # Recipe name as title
-#                 st.write("**Ingredients:**")
-#                 st.write(recipe[1])
-#                 st.write("**Instructions:**")
-#                 st.write(recipe[2])
-#                 if recipe[3]:
-#                     st.write("**Nutritional Values:**")
-#                     st.json(eval(recipe[3]))
-#     else:
-#         st.info("No recipes found. Submit your first recipe!")
-# elif authentication_status is False:
-#     st.error("Username/password is incorrect.")
-# elif authentication_status is None:
-#     st.warning("Please enter your username and password to continue.")
-
-
-import yaml
-import sqlite3
 import streamlit as st
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from db_functions import *
+# from ..db_functions import *
 import streamlit_authenticator as stauth
-from yaml.loader import SafeLoader
+import secrets
 
 # Streamlit page setup
-st.set_page_config(page_title="Account", page_icon="🍴", layout="wide")
+st.set_page_config(page_title="My profile", page_icon="👨‍💼", layout="wide")
 
-# Initialize database
-DATABASE = "recipes.db"
+# Open the database connection
+conn = get_db_connection()
 
+# Fetch credentials from the database
+credentials = get_user_credentials(conn)
 
-def init_db():
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    # Create the users table if it does not exist
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            userid INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            email TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            roles TEXT -- Store roles as a comma-separated string
-        )
-    """)
-
-    # Create the recipes table if it does not exist
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            recipe_name TEXT,
-            ingredients TEXT,
-            instructions TEXT,
-            nutrition_values TEXT,
-            FOREIGN KEY (username) REFERENCES users(username)
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-def add_user(username, email, first_name, last_name, roles="editor"):
-    """
-    Adds a new user to the database. If the user already exists, it does nothing.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            INSERT OR IGNORE INTO users (username, email, first_name, last_name, roles)
-            VALUES (?, ?, ?, ?, ?)
-        """, (username, email, first_name, last_name, ','.join(roles)))
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error adding user: {e}")
-    finally:
-        conn.close()
-
-
-def add_recipe(username, recipe_name, ingredients, instructions, nutrition_values=None):
-    """
-    Adds a new recipe to the database associated with a user.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            INSERT INTO recipes (username, recipe_name, ingredients, instructions, nutrition_values)
-            VALUES (?, ?, ?, ?, ?)
-        """, (username, recipe_name, ingredients, instructions, nutrition_values))
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error adding recipe: {e}")
-    finally:
-        conn.close()
-
-
-def get_recipes(username):
-    """
-    Retrieves all recipes associated with a specific user.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            SELECT recipe_name, ingredients, instructions, nutrition_values FROM recipes
-            WHERE username = ?
-        """, (username,))
-        recipes = cursor.fetchall()
-    except sqlite3.Error as e:
-        print(f"Error retrieving recipes: {e}")
-        recipes = []
-    finally:
-        conn.close()
-    return recipes
-
-
-def get_user_id(username):
-    """
-    Retrieves the user ID for a given username.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            SELECT userid FROM users WHERE username = ?
-        """, (username,))
-        user_id = cursor.fetchone()
-        return user_id[0] if user_id else None
-    except sqlite3.Error as e:
-        print(f"Error retrieving user ID: {e}")
-        return None
-    finally:
-        conn.close()
-
-
-def update_recipe(recipe_id, recipe_name=None, ingredients=None, instructions=None, nutrition_values=None):
-    """
-    Updates an existing recipe in the database.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        updates = []
-        params = []
-
-        if recipe_name:
-            updates.append("recipe_name = ?")
-            params.append(recipe_name)
-        if ingredients:
-            updates.append("ingredients = ?")
-            params.append(ingredients)
-        if instructions:
-            updates.append("instructions = ?")
-            params.append(instructions)
-        if nutrition_values:
-            updates.append("nutrition_values = ?")
-            params.append(nutrition_values)
-
-        params.append(recipe_id)
-        query = f"UPDATE recipes SET {', '.join(updates)} WHERE id = ?"
-        cursor.execute(query, params)
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error updating recipe: {e}")
-    finally:
-        conn.close()
-
-
-def delete_recipe(recipe_id):
-    """
-    Deletes a recipe from the database.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            DELETE FROM recipes WHERE id = ?
-        """, (recipe_id,))
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error deleting recipe: {e}")
-    finally:
-        conn.close()
-
-
-def get_all_users():
-    """
-    Retrieves all users in the database.
-    """
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-            SELECT userid, username, email, first_name, last_name, roles FROM users
-        """)
-        users = cursor.fetchall()
-    except sqlite3.Error as e:
-        print(f"Error retrieving users: {e}")
-        users = []
-    finally:
-        conn.close()
-    return users
-
-
-# Initialize the database
-init_db()
-
-# Load YAML configuration
-with open('./config.yaml') as file:
-    config = yaml.load(file, Loader=SafeLoader)
-
-# Add users from the YAML file to the database
-for username, details in config.get('credentials', {}).get('usernames', {}).items():
-    add_user(
-        username=username,
-        email=details.get('email', ''),
-        first_name=details.get('first_name', ''),
-        last_name=details.get('last_name', ''),
-        roles=details.get('roles', [])
-    )
-
-# Streamlit Authenticator setup
+# Setup authentication
 authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
+    credentials,
+    "savorium_cookie",  # Cookie name
+    secrets.token_hex(16),  # Generates a secure 32-character key
+    1              # Expiry days
 )
 
-try:
-    authenticator.login()
-except Exception as e:
-    st.error(e)
+def register_user(username, password, email, name, role="user"):
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO users (username, password, email, nickname, role) 
+            VALUES (?, ?, ?, ?, ?);
+        """, (username, password, email, name, role))
+        
+        conn.commit()
+        st.success("✅ User registered successfully! You can now log in.")
+    except sqlite3.IntegrityError:
+        st.error("⚠️ Username or Email already exists!")
+    finally:
+        cursor.close()
 
-# Main application logic
-if st.session_state['authentication_status']:
-    authenticator.logout()
-    st.write(f'Welcome *{st.session_state["name"]}*')
-
-    # Get the logged-in user's ID
-    user_id = get_user_id(st.session_state["username"])
-    username = st.session_state["username"]
-    st.write(f"Your user name is: {username}")
-    st.write(f"Your user ID is: {user_id}")
-    # Recipe submission form
-    st.title("Submit Your Recipe")
-
-    with st.form("recipe_form"):
-        recipe_name = st.text_input("Recipe Name", max_chars=50)
-        ingredients = st.text_area("Ingredients (comma-separated)", height=100)
-        instructions = st.text_area("Instructions (step-by-step)", height=150)
-        nutrition_values = st.text_area("Nutritional Values (JSON format)", height=100)
-        submitted = st.form_submit_button("Submit")
-
-    if submitted:
-        if recipe_name and ingredients and instructions:
-            add_recipe(username, recipe_name, ingredients, instructions, nutrition_values)
-            st.success("Recipe submitted successfully!")
-        else:
-            st.error("All fields are required!")
-
-    # View saved recipes
-    st.title("Your Saved Recipes")
-    recipes = get_recipes(username)
-    st.write(f"Debug: Retrieved Recipes: {recipes}")  # Display fetched recipes
-    if recipes:
-        for recipe in recipes:
-            with st.expander(recipe[0]):  # Recipe name as title
-                st.write("**Ingredients:**")
-                st.write(recipe[1])
-                st.write("**Instructions:**")
-                st.write(recipe[2])
-                if recipe[3]:
-                    st.write("**Nutritional Values:**")
-                    try:
-                        st.json(eval(recipe[3]))  # Safely parse JSON string
-                    except:
-                        st.write(recipe[3])  # Display raw string if parsing fails
-    else:
-        st.info("No recipes found. Submit your first recipe!")
-
-elif st.session_state['authentication_status'] is False:
-    st.error('Username/password is incorrect')
-elif st.session_state['authentication_status'] is None:
-    st.warning('Please enter your username and password')
-
-# if st.button("Register"):
-#     new_user = authenticator.register_user(
-#         preauthorized=config.get("preauthorized", {}).get("emails", [])
-#     )
-#     if new_user:
-#         st.success("Registration successful!")
-#     else:
-#         st.error("Registration failed. Email not preauthorized.")
-
-# if authentication_status:
-#     authenticator.logout("Logout", "sidebar")
-#     st.sidebar.write(f"Welcome, {name}!")
-
-#     # Ensure the user is added to the database
-#     add_user(username, name)
-
+def create_ingredient_text(recipe):
+    """Create a text string of ingredients for downloading"""
+    lines = [f"Ingredients for {recipe['title']}:\n"]
+    lines.append("=" * (len(lines[0]) - 1) + "\n\n")
     
+    for ingredient in recipe['ingredients']:
+        lines.append(f"- {ingredient['quantity']} {ingredient['unit']} {ingredient['name']}\n")
+    
+    return "".join(lines)
 
-# elif authentication_status is False:
-#     st.error("Username/password is incorrect.")
-# elif authentication_status is None:
-#     st.warning("Please enter your username and password.")
+auth_mode = None
+
+if not st.session_state['authentication_status']:
+    # Toggle between Login & Register
+    auth_mode = st.radio("Choose an option:", ["Login", "Register"])
+
+if auth_mode == "Register":
+    st.subheader("📝 Register as a New User")
+    with st.form("register_form"):
+        username = st.text_input("Username")
+        email = st.text_input("Email")
+        name = st.text_input("Name")
+        password = st.text_input("Password", type="password")
+        confirm_password = st.text_input("Confirm Password", type="password")
+        # role = st.selectbox("Role", ["user", "admin"])
+
+        submit = st.form_submit_button("Register")
+
+    if submit:
+        if password != confirm_password:
+            st.error("❌ Passwords do not match!")
+        elif not username or not email or not password:
+            st.error("⚠️ Please fill in all fields!")
+        else:
+            register_user(username, password, email, name, role="user")
+
+else:
+    try:
+        authenticator.login()
+    except Exception as e:
+        st.error(e)
+
+    # main_option = st.sidebar.radio("Choose an option:", ["🍽️ Recipes", "📊 Other Option"])
+    # Main application logic
+    if st.session_state['authentication_status']:
+        authenticator.logout()
+        st.subheader(f'Welcome *{st.session_state["name"]}*', divider=True)
+
+        # Main navigation options
+        main_option = st.sidebar.radio("Choose an Option:", ["📖 Manage Recipes", "🔧 Search Recipes"], horizontal=True)
+
+        if main_option == "📖 Manage Recipes":
+            # --- 🎯 Show Tabs After Login ---
+            # tab1, tab2, tab3, tab4 = st.tabs(["📜 My Recipes", "➕ Add Recipe", "⭐ Favorites", "⚙️ Manage Account"])
+            tab1, tab2, tab3 = st.tabs(["📜 My Recipes", "➕ Add Recipe", "⭐ Favorites"])
+
+            with tab1:
+                st.header("📜 Your Recipes")
+                st.write("Here you can see all the recipes you've added.")
+
+                # Fetch user ID and recipes
+                user_id = get_user_id(conn, st.session_state["username"])
+                recipes = get_user_recipes(conn, user_id)
+
+                if not recipes:
+                    st.write("No recipes found.")
+                else:
+                    for recipe in recipes:
+                        # Create a container for each recipe
+                        with st.container():
+                            col1, col2 = st.columns([4, 1])  # Split the row into two columns
+                            
+                            with col1:
+                                # Display recipe details in an expander
+                                with st.expander(recipe["title"]):
+                                    st.subheader("Recipe ID:")
+                                    st.write(recipe["recipe_id"])
+
+                                    st.subheader("Description:")
+                                    st.write(recipe["description"])
+                                    
+                                    st.subheader("Instructions:")
+                                    st.write(recipe["instructions"])
+                                    
+                                    st.subheader("Ingredients:")
+                                    for ingredient in recipe["ingredients"]:
+                                        st.write(f"- {ingredient['name']} ({ingredient['quantity']} {ingredient['unit']})")
+                                    
+                                    st.subheader("Tags:")
+                                    st.write(", ".join(recipe["tags"]))  # Display tags as comma-separated
+
+                                    st.subheader("Visibility:")
+                                    st.write(recipe["visibility"])
+
+                                    # Download button for ingredients
+                                    ingredient_text = create_ingredient_text(recipe)
+                                    st.download_button(
+                                        label="📥 Download Ingredients",
+                                        data=ingredient_text,
+                                        file_name=f"{recipe['title']}_ingredients.txt",
+                                        mime="text/plain",
+                                        key=f"download_{recipe['recipe_id']}_myrecipes"
+                                    )
+
+                            with col2:
+                                recipe_id = recipe['recipe_id']
+                                if recipe_id is not None:
+                                    if st.button(f"Delete {recipe['title']}", key=f"delete_{recipe_id}"):
+                                        delete_recipe(conn, recipe_id)
+                                        st.success(f"Recipe '{recipe['title']}' deleted successfully!")
+                                        st.rerun()
+                                else:
+                                    st.warning(f"Recipe ID missing for {recipe['title']}. Unable to delete.")
+
+                        st.write("---")  # Divider between recipes
+
+
+            with tab2:
+                st.header("➕ Add a New Recipe")
+                with st.form("add_recipe_form"):
+                    title = st.text_input("Recipe Title")
+                    description = st.text_area("Recipe Description")
+                    instructions = st.text_area("Recipe Instructions")
+                    visibility = st.radio("👀 Visibility", ["Public", "Private"], horizontal=True)
+                    
+                    # Ingredients section
+                    ingredient_list = []
+                    unit_options = ["grams", "kg", "cups", "tbsp", "tsp", "ml", "liters", "pieces"]
+                    ingredient_count = st.session_state.get("ingredient_count", 1)
+
+                    for i in range(ingredient_count):
+                        col1, col2, col3 = st.columns([3, 2, 2])
+                        with col1:
+                            ingredient_name = st.text_input(f"Ingredient {i+1} Name", key=f"ingredient_{i}_name")
+                        with col2:
+                            unit = st.selectbox(f"Unit {i+1}", unit_options, key=f"ingredient_{i}_unit")
+                        with col3:
+                            quantity = st.number_input(f"Quantity {i+1}", min_value=0.1, step=0.1, key=f"ingredient_{i}_quantity")
+
+                        ingredient_list.append((ingredient_name, unit, quantity))
+
+                    # Buttons to add or remove ingredient fields dynamically
+                    col_add, col_remove = st.columns([1, 1])
+                    with col_add:
+                        if st.form_submit_button("➕ Add Ingredient"):
+                            st.session_state["ingredient_count"] = ingredient_count + 1
+                            st.rerun()
+                    with col_remove:
+                        if ingredient_count > 1 and st.form_submit_button("➖ Remove Last Ingredient"):
+                            st.session_state["ingredient_count"] = ingredient_count - 1
+                            st.rerun()
+
+                    # Tags section
+                    available_tags = get_all_tags(conn)
+                    tags = st.multiselect("🏷️ Select Tags", available_tags, help="Choose relevant tags for your recipe")
+
+                    # Option to add custom tags
+                    custom_tag = st.text_input("🔖 Add Custom Tag")
+                    addcustomtag = st.form_submit_button("➕ Add Custom Tag")
+
+                    if custom_tag and addcustomtag:
+                        if custom_tag not in tags:
+                            tags.append(custom_tag)
+                            st.success(f"Added custom tag: {custom_tag}")
+
+                    for tag in tags:
+                        st.write(f"- {tag}")
+
+                    add_recipe_btn = st.form_submit_button("Add Recipe")
+
+                if add_recipe_btn:
+                    if not title or not description or not instructions or not visibility or not ingredient_list:
+                        st.error("⚠️ Please fill in all fields!")
+                    else:
+                        user_id = get_user_id(conn, st.session_state["username"])
+                        
+                        # Ensure custom tags are added to the database
+                        for tag in tags:
+                            add_tag(conn, tag)  # Add the tag to the database if it doesn't exist
+
+                        # Add the recipe
+                        add_recipe(conn, user_id, title, description, instructions, ingredient_list, tags, visibility)
+                        
+                        st.success("✅ Recipe added successfully!")
+                        st.rerun()
+
+            with tab3:
+                st.header("⭐ Favourite Recipes")
+                st.write("Here you can see all your favorite recipes you've saved.")
+
+                # Fetch user ID and recipes
+                user_id = get_user_id(conn, st.session_state["username"])
+                recipes = get_favorites(conn, user_id)
+
+                if not recipes:
+                    st.write("No recipes found.")
+                else:
+                    for recipe in recipes:
+                        # Create a container for each recipe
+                        with st.container():
+                            col1, col2 = st.columns([4, 1])  # Split the row into two columns
+                            
+                            with col1:
+                                # Display recipe details in an expander
+                                with st.expander(recipe["title"]):
+                                    st.subheader("Recipe ID:")
+                                    st.write(recipe["recipe_id"])
+
+                                    st.subheader("Description:")
+                                    st.write(recipe["description"])
+                                    
+                                    st.subheader("Instructions:")
+                                    st.write(recipe["instructions"])
+                                    
+                                    st.subheader("Ingredients:")
+                                    for ingredient in recipe["ingredients"]:
+                                        st.write(f"- {ingredient['name']} ({ingredient['quantity']} {ingredient['unit']})")
+                                    
+                                    st.subheader("Tags:")
+                                    st.write(", ".join(recipe["tags"]))  # Display tags as comma-separated
+
+                                    # Download button for ingredients
+                                    ingredient_text = create_ingredient_text(recipe)
+                                    st.download_button(
+                                        label="📥 Download Ingredients",
+                                        data=ingredient_text,
+                                        file_name=f"{recipe['title']}_ingredients.txt",
+                                        mime="text/plain",
+                                        key=f"download_{recipe['recipe_id']}_favorites"
+                                    )
+
+                            with col2:
+                                recipe_id = recipe['recipe_id']
+                                if recipe_id is not None:
+                                    if st.button(f"Delete {recipe['title']}", key=f"delete_{recipe_id}"):
+                                        delete_recipe(conn, recipe_id)
+                                        st.success(f"Recipe '{recipe['title']}' deleted successfully!")
+                                        st.rerun()
+                                else:
+                                    st.warning(f"Recipe ID missing for {recipe['title']}. Unable to delete.")
+
+                        st.write("---")  # Divider between recipes
+
+        else:
+            st.header("🔧 Search Recipes")
+            conn.row_factory = sqlite3.Row
+            
+            # Search functionality
+            search_query = st.text_input("Search for a recipe:")
+
+            if search_query:
+                search_results = search_public_recipes(conn, search_query)
+
+                if search_results:
+                    st.subheader("Search Results")
+                    for recipe in search_results:
+                        with st.expander(f"🍴 {recipe['title']}"):
+                            st.markdown(f"**Description:** {recipe['description']}")
+                            
+                            st.markdown("**Ingredients:**")
+                            for ingredient in recipe['ingredients']:
+                                st.write(f"- {ingredient['quantity']} {ingredient['unit']} {ingredient['name']}")
+                            
+                            st.markdown("**Instructions:**")
+                            st.write(recipe['instructions'])
+                            
+                            if recipe['tags']:
+                                st.markdown("**Tags:** " + ", ".join(recipe['tags']))
+                            
+                            st.markdown(f"*Posted by user ID: {recipe['user_id']}*")
+                            
+                            # Download button for ingredients
+                            ingredient_text = create_ingredient_text(recipe)
+                            st.download_button(
+                                label="📥 Download Ingredients",
+                                data=ingredient_text,
+                                file_name=f"{recipe['title']}_ingredients.txt",
+                                mime="text/plain",
+                                key=f"download_{recipe['recipe_id']}_search"
+                            )
+                        st.write("---")
+                else:
+                    st.warning("No matching recipes found.")
+
+            # Show random recipes initially
+            st.subheader("Featured Public Recipes")
+            random_recipes = get_random_public_recipes(conn)
+
+            if random_recipes:
+                for recipe in random_recipes:
+                    with st.expander(f"⭐ {recipe['title']}"):
+                        st.markdown(f"**Description:** {recipe['description']}")
+                        
+                        st.markdown("**Ingredients:**")
+                        for ingredient in recipe['ingredients']:
+                            st.write(f"- {ingredient['quantity']} {ingredient['unit']} {ingredient['name']}")
+                        
+                        st.markdown("**Instructions:**")
+                        st.write(recipe['instructions'])
+                        
+                        if recipe['tags']:
+                            st.markdown("**Tags:** " + ", ".join(recipe['tags']))
+                        
+                        st.markdown(f"*Posted by user ID: {recipe['user_id']}*")
+                        
+                        # Download button for ingredients
+                        ingredient_text = create_ingredient_text(recipe)
+                        st.download_button(
+                            label="📥 Download Ingredients",
+                            data=ingredient_text,
+                            file_name=f"{recipe['title']}_ingredients.txt",
+                            mime="text/plain",
+                            key=f"download_{recipe['recipe_id']}_featured"
+                        )
+                    st.write("---")
+            else:
+                st.warning("No public recipes available.")
+
+
+    elif st.session_state['authentication_status'] == None:
+        st.warning('Please enter your username and password')
+    else:
+        st.error('Username/password is incorrect')
+
+# Close the connection when the app is done
+conn.close()
+
+# import streamlit as st
+# import sys
+# import os
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# from db_functions import *
+# # from ..db_functions import *
+# import streamlit_authenticator as stauth
+# import secrets
+
+# # Streamlit page setup
+# st.set_page_config(page_title="My profile", page_icon="👨‍💼", layout="wide")
+
+# # Open the database connection
+# conn = get_db_connection()
+
+# # Fetch credentials from the database
+# credentials = get_user_credentials(conn)
+
+# # Setup authentication
+# authenticator = stauth.Authenticate(
+#     credentials,
+#     "savorium_cookie",  # Cookie name
+#     secrets.token_hex(16),  # Generates a secure 32-character key
+#     1              # Expiry days
+# )
+
+# def register_user(username, password, email, name, role="user"):
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute("""
+#             INSERT INTO users (username, password, email, nickname, role) 
+#             VALUES (?, ?, ?, ?, ?);
+#         """, (username, password, email, name, role))
+        
+#         conn.commit()
+#         st.success("✅ User registered successfully! You can now log in.")
+#     except sqlite3.IntegrityError:
+#         st.error("⚠️ Username or Email already exists!")
+#     finally:
+#         cursor.close()
+
+# auth_mode = None
+
+# if not st.session_state['authentication_status']:
+#     # Toggle between Login & Register
+#     auth_mode = st.radio("Choose an option:", ["Login", "Register"])
+
+# if auth_mode == "Register":
+#     st.subheader("📝 Register as a New User")
+#     with st.form("register_form"):
+#         username = st.text_input("Username")
+#         email = st.text_input("Email")
+#         name = st.text_input("Name")
+#         password = st.text_input("Password", type="password")
+#         confirm_password = st.text_input("Confirm Password", type="password")
+#         # role = st.selectbox("Role", ["user", "admin"])
+
+#         submit = st.form_submit_button("Register")
+
+#     if submit:
+#         if password != confirm_password:
+#             st.error("❌ Passwords do not match!")
+#         elif not username or not email or not password:
+#             st.error("⚠️ Please fill in all fields!")
+#         else:
+#             register_user(username, password, email, name, role="user")
+
+# else:
+#     try:
+#         authenticator.login()
+#     except Exception as e:
+#         st.error(e)
+
+#     # main_option = st.sidebar.radio("Choose an option:", ["🍽️ Recipes", "📊 Other Option"])
+#     # Main application logic
+#     if st.session_state['authentication_status']:
+#         authenticator.logout()
+#         st.subheader(f'Welcome *{st.session_state["name"]}*', divider=True)
+
+#         # Main navigation options
+#         main_option = st.sidebar.radio("Choose an Option:", ["📖 Manage Recipes", "🔧 Other Feature"], horizontal=True)
+
+#         if main_option == "📖 Manage Recipes":
+#             # --- 🎯 Show Tabs After Login ---
+#             tab1, tab2, tab3, tab4 = st.tabs(["📜 My Recipes", "➕ Add Recipe", "⭐ Favorites", "⚙️ Manage Account"])
+
+#             with tab1:
+#                 st.header("📜 Your Recipes")
+#                 st.write("Here you can see all the recipes you've added.")
+
+#                 # Fetch user ID and recipes
+#                 user_id = get_user_id(conn, st.session_state["username"])
+#                 recipes = get_user_recipes(conn, user_id)
+
+#                 if not recipes:
+#                     st.write("No recipes found.")
+#                 else:
+#                     for recipe in recipes:
+#                         # Create a container for each recipe
+#                         with st.container():
+#                             col1, col2 = st.columns([4, 1])  # Split the row into two columns
+                            
+#                             with col1:
+#                                 # Display recipe details in an expander
+#                                 with st.expander(recipe["title"]):
+#                                     st.subheader("Recipe ID:")
+#                                     st.write(recipe["recipe_id"])
+
+#                                     st.subheader("Description:")
+#                                     st.write(recipe["description"])
+                                    
+#                                     st.subheader("Instructions:")
+#                                     st.write(recipe["instructions"])
+                                    
+#                                     st.subheader("Ingredients:")
+#                                     for ingredient in recipe["ingredients"]:
+#                                         st.write(f"- {ingredient['name']} ({ingredient['quantity']} {ingredient['unit']})")
+                                    
+#                                     st.subheader("Tags:")
+#                                     st.write(", ".join(recipe["tags"]))  # Display tags as comma-separated
+
+#                                     st.subheader("Visibility:")
+#                                     st.write(recipe["visibility"])
+
+#                             with col2:
+#                                 recipe_id = recipe['recipe_id']
+#                                 if recipe_id is not None:
+#                                     if st.button(f"Delete {recipe['title']}", key=f"delete_{recipe_id}"):
+#                                         delete_recipe(conn, recipe_id)
+#                                         st.success(f"Recipe '{recipe['title']}' deleted successfully!")
+#                                         st.rerun()
+#                                 else:
+#                                     st.warning(f"Recipe ID missing for {recipe['title']}. Unable to delete.")
+
+#                         st.write("---")  # Divider between recipes
+
+
+#             with tab2:
+#                 st.header("➕ Add a New Recipe")
+#                 with st.form("add_recipe_form"):
+#                     title = st.text_input("Recipe Title")
+#                     description = st.text_area("Recipe Description")
+#                     instructions = st.text_area("Recipe Instructions")
+#                     visibility = st.radio("👀 Visibility", ["Public", "Private"], horizontal=True)
+                    
+#                     # Ingredients section
+#                     ingredient_list = []
+#                     unit_options = ["grams", "kg", "cups", "tbsp", "tsp", "ml", "liters", "pieces"]
+#                     ingredient_count = st.session_state.get("ingredient_count", 1)
+
+#                     for i in range(ingredient_count):
+#                         col1, col2, col3 = st.columns([3, 2, 2])
+#                         with col1:
+#                             ingredient_name = st.text_input(f"Ingredient {i+1} Name", key=f"ingredient_{i}_name")
+#                         with col2:
+#                             unit = st.selectbox(f"Unit {i+1}", unit_options, key=f"ingredient_{i}_unit")
+#                         with col3:
+#                             quantity = st.number_input(f"Quantity {i+1}", min_value=0.1, step=0.1, key=f"ingredient_{i}_quantity")
+
+#                         ingredient_list.append((ingredient_name, unit, quantity))
+
+#                     # Buttons to add or remove ingredient fields dynamically
+#                     col_add, col_remove = st.columns([1, 1])
+#                     with col_add:
+#                         if st.form_submit_button("➕ Add Ingredient"):
+#                             st.session_state["ingredient_count"] = ingredient_count + 1
+#                             st.rerun()
+#                     with col_remove:
+#                         if ingredient_count > 1 and st.form_submit_button("➖ Remove Last Ingredient"):
+#                             st.session_state["ingredient_count"] = ingredient_count - 1
+#                             st.rerun()
+
+#                     # Tags section
+#                     available_tags = get_all_tags(conn)
+#                     tags = st.multiselect("🏷️ Select Tags", available_tags, help="Choose relevant tags for your recipe")
+
+#                     # Option to add custom tags
+#                     custom_tag = st.text_input("🔖 Add Custom Tag")
+#                     addcustomtag = st.form_submit_button("➕ Add Custom Tag")
+
+#                     if custom_tag and addcustomtag:
+#                         if custom_tag not in tags:
+#                             tags.append(custom_tag)
+#                             st.success(f"Added custom tag: {custom_tag}")
+
+#                     for tag in tags:
+#                         st.write(f"- {tag}")
+
+#                     add_recipe_btn = st.form_submit_button("Add Recipe")
+
+#                 if add_recipe_btn:
+#                     if not title or not description or not instructions or not visibility or not ingredient_list:
+#                         st.error("⚠️ Please fill in all fields!")
+#                     else:
+#                         user_id = get_user_id(conn, st.session_state["username"])
+                        
+#                         # Ensure custom tags are added to the database
+#                         for tag in tags:
+#                             add_tag(conn, tag)  # Add the tag to the database if it doesn't exist
+
+#                         # Add the recipe
+#                         add_recipe(conn, user_id, title, description, instructions, ingredient_list, tags, visibility)
+                        
+#                         st.success("✅ Recipe added successfully!")
+
+#             with tab3:
+#                 st.header("⭐ Favourite Recipes")
+#                 st.write("Here you can see all your favorite recipes you've saved.")
+
+#                 # Fetch user ID and recipes
+#                 user_id = get_user_id(conn, st.session_state["username"])
+#                 recipes = get_favorites(conn, user_id)
+
+#                 if not recipes:
+#                     st.write("No recipes found.")
+#                 else:
+#                     for recipe in recipes:
+#                         # Create a container for each recipe
+#                         with st.container():
+#                             col1, col2 = st.columns([4, 1])  # Split the row into two columns
+                            
+#                             with col1:
+#                                 # Display recipe details in an expander
+#                                 with st.expander(recipe["title"]):
+#                                     st.subheader("Recipe ID:")
+#                                     st.write(recipe["recipe_id"])
+
+#                                     st.subheader("Description:")
+#                                     st.write(recipe["description"])
+                                    
+#                                     st.subheader("Instructions:")
+#                                     st.write(recipe["instructions"])
+                                    
+#                                     st.subheader("Ingredients:")
+#                                     for ingredient in recipe["ingredients"]:
+#                                         st.write(f"- {ingredient['name']} ({ingredient['quantity']} {ingredient['unit']})")
+                                    
+#                                     st.subheader("Tags:")
+#                                     st.write(", ".join(recipe["tags"]))  # Display tags as comma-separated
+
+#                                     # st.subheader("Visibility:")
+#                                     # st.write(recipe["visibility"])
+
+#                             with col2:
+#                                 recipe_id = recipe['recipe_id']
+#                                 if recipe_id is not None:
+#                                     if st.button(f"Delete {recipe['title']}", key=f"delete_{recipe_id}"):
+#                                         delete_recipe(conn, recipe_id)
+#                                         st.success(f"Recipe '{recipe['title']}' deleted successfully!")
+#                                         st.rerun()
+#                                 else:
+#                                     st.warning(f"Recipe ID missing for {recipe['title']}. Unable to delete.")
+
+#                         st.write("---")  # Divider between recipes
+
+#         else:
+#             st.header("🔧 Other Feature")
+#             conn.row_factory = sqlite3.Row
+            
+#             # Search functionality
+#             search_query = st.text_input("Search for a recipe:")
+
+#             if search_query:
+#                 search_results = search_public_recipes(conn, search_query)
+
+#                 if search_results:
+#                     st.subheader("Search Results")
+#                     for recipe in search_results:
+#                         with st.expander(f"🍴 {recipe['title']}"):
+#                             st.markdown(f"**Description:** {recipe['description']}")
+                            
+#                             st.markdown("**Ingredients:**")
+#                             for ingredient in recipe['ingredients']:
+#                                 st.write(f"- {ingredient['quantity']} {ingredient['unit']} {ingredient['name']}")
+                            
+#                             st.markdown("**Instructions:**")
+#                             st.write(recipe['instructions'])
+                            
+#                             if recipe['tags']:
+#                                 st.markdown("**Tags:** " + ", ".join(recipe['tags']))
+                            
+#                             st.markdown(f"*Posted by user ID: {recipe['user_id']}*")
+#                         st.write("---")
+#                 else:
+#                     st.warning("No matching recipes found.")
+
+#             # Show random recipes initially
+#             st.subheader("Featured Public Recipes")
+#             random_recipes = get_random_public_recipes(conn)
+
+#             if random_recipes:
+#                 for recipe in random_recipes:
+#                     with st.expander(f"⭐ {recipe['title']}"):
+#                         st.markdown(f"**Description:** {recipe['description']}")
+                        
+#                         st.markdown("**Ingredients:**")
+#                         for ingredient in recipe['ingredients']:
+#                             st.write(f"- {ingredient['quantity']} {ingredient['unit']} {ingredient['name']}")
+                        
+#                         st.markdown("**Instructions:**")
+#                         st.write(recipe['instructions'])
+                        
+#                         if recipe['tags']:
+#                             st.markdown("**Tags:** " + ", ".join(recipe['tags']))
+                        
+#                         st.markdown(f"*Posted by user ID: {recipe['user_id']}*")
+#                     st.write("---")
+#             else:
+#                 st.warning("No public recipes available.")
+
+
+#     elif st.session_state['authentication_status'] == None:
+#         st.warning('Please enter your username and password')
+#     else:
+#         st.error('Username/password is incorrect')
+
+# # Close the connection when the app is done
+# conn.close()

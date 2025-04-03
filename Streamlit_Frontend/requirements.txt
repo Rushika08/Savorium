@@ -9,3 +9,4 @@ protobuf==3.20.1
 streamlit-authenticator
 bcrypt==4.0.1
 PyYAML
+streamlit_lottie

@@ -65,6 +65,7 @@ class Display:
                             """)                       
         else:
             st.info('Couldn\'t find any recipes with the specified ingredients', icon="🙁")
+            
     def display_overview(self,recommendations):
         if recommendations!=None:
             st.subheader('Overview:')
@@ -76,25 +77,25 @@ class Display:
                 if recipe['Name']==selected_recipe_name:
                     selected_recipe=recipe
             options = {
-        "title": {"text": "Nutrition values", "subtext": f"{selected_recipe_name}", "left": "center"},
-        "tooltip": {"trigger": "item"},
-        "legend": {"orient": "vertical", "left": "left",},
-        "series": [
-            {
-                "name": "Nutrition values",
-                "type": "pie",
-                "radius": "50%",
-                "data": [{"value":selected_recipe[nutrition_value],"name":nutrition_value} for nutrition_value in self.nutrition_values],
-                "emphasis": {
-                    "itemStyle": {
-                        "shadowBlur": 10,
-                        "shadowOffsetX": 0,
-                        "shadowColor": "rgba(0, 0, 0, 0.5)",
+            "title": {"text": "Nutrition values", "subtext": f"{selected_recipe_name}", "left": "center"},
+            "tooltip": {"trigger": "item"},
+            "legend": {"orient": "vertical", "left": "left",},
+            "series": [
+                {
+                    "name": "Nutrition values",
+                    "type": "pie",
+                    "radius": "50%",
+                    "data": [{"value":selected_recipe[nutrition_value],"name":nutrition_value} for nutrition_value in self.nutrition_values],
+                    "emphasis": {
+                        "itemStyle": {
+                            "shadowBlur": 10,
+                            "shadowOffsetX": 0,
+                            "shadowColor": "rgba(0, 0, 0, 0.5)",
+                            }
+                        },
                     }
-                },
+                ],
             }
-        ],
-    }
             st_echarts(options=options, height="600px",)
             st.caption('You can select/deselect an item (nutrition value) from the legend.')
 
