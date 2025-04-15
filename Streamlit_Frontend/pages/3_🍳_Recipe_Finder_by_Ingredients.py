@@ -150,7 +150,7 @@ with st.form("ingredient_form"):
 
 if submitted and ingredients_input:
     # Call the API
-    api_key = "92d69d50485a4c429fdefc0cb5e2dbee"  # Replace with your API key
+    api_key = ""  # Replace with your API key
     recipes = find_recipes(
         ingredients=ingredients_input,
         number=number_of_recipes,
